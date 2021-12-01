@@ -4,10 +4,13 @@ It also includes common transformation functions (e.g., get_transform, __scale_w
 """
 import random
 import numpy as np
+import torch
 import torch.utils.data as data
 from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
+from torchvision.transforms import InterpolationMode
+import os
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -78,10 +81,41 @@ def get_params(opt, size):
     return {'crop_pos': (x, y), 'flip': flip}
 
 
+def get_mask_by_path(path):
+    left_1 = (240, 250)
+    left_2 = (170, 200)
+    right_1 = (280, 250)
+    right_2 = (350, 200)
+    size = (30, 30)
+    start = 50
+    end = 120
+    left_dx = [0, 1, 1, -1, -1]
+    left_dy = [0, 1, -1, 1, -1]
+    filename=os.path.basename(path).split(".")[0]
+    i=int(filename.split("_")[-1])
+    index = int(filename.split("_")[-2])
+    ratio = (i - start) / (end - i)
+    left_x = round((left_1[0] + ratio * left_2[0]) / (1 + ratio)) + left_dx[index]- round(size[0] / 2)
+    left_y = round((left_1[1] + ratio * left_2[1]) / (1 + ratio)) + left_dy[index]- round(size[1] / 2)
+    right_x = round((right_1[0] + ratio * right_2[0]) / (1 + ratio)) - left_dx[index]- round(size[0] / 2)
+    right_y = round((right_1[1] + ratio * right_2[1]) / (1 + ratio)) + left_dy[index]- round(size[1] / 2)
+    return {"left": torch.Tensor([left_y, left_x]), "right": torch.Tensor([right_y, right_x]), "size": torch.Tensor(size)}
+
+
+def get_mask_by_image(image):
+    idx=(image==1).nonzero()
+    left=idx[0][1:]
+    right=idx[-1][1:]
+    size=right[0]-left[0]
+    size=torch.Tensor((size,size))
+    right=right-size
+    return {"left": left, "right": right, "size": size}
+
+
 def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, convert=True):
     transform_list = []
-    if grayscale:
-        transform_list.append(transforms.Grayscale(1))
+    # if grayscale:
+    #     transform_list.append(transforms.Grayscale(1))
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
         transform_list.append(transforms.Resize(osize, method))

@@ -39,6 +39,7 @@ class BaseModel(ABC):
         self.loss_names = []
         self.model_names = []
         self.visual_names = []
+        self.metrics = {}
         self.optimizers = []
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
@@ -104,10 +105,23 @@ class BaseModel(ABC):
         with torch.no_grad():
             self.forward()
             self.compute_visuals()
+            self.compute_metrics()
+
+    def compute_metrics(self):
+        pass
 
     def compute_visuals(self):
         """Calculate additional output images for visdom and HTML visualization"""
         pass
+
+    def output_metrics(self, web_dir):
+        metrics={}
+        file_path=os.path.join(web_dir,'metrics.txt')
+        with open(file_path, 'w') as file:
+            for name, metric in self.metrics.items():
+                metrics[name]=metric.compute()
+                file.write(name+': '+str(metrics[name])+'\n')
+        return metrics
 
     def get_image_paths(self):
         """ Return image paths that are used to load current data"""
@@ -125,12 +139,25 @@ class BaseModel(ABC):
         lr = self.optimizers[0].param_groups[0]['lr']
         print('learning rate %.7f -> %.7f' % (old_lr, lr))
 
+    def get_learning_rate(self):
+        """Return learning rates for all the networks"""
+        lr = self.optimizers[0].param_groups[0]['lr']
+        return lr
+
+    def get_networks(self):
+        """Return all nets"""
+        nets=OrderedDict()
+        for name in self.model_names:
+            if isinstance(name, str):
+                nets[name]=getattr(self, 'net' + name)
+        return nets
+
     def get_current_visuals(self):
         """Return visualization images. train.py will display these images with visdom, and save the images to a HTML"""
         visual_ret = OrderedDict()
         for name in self.visual_names:
             if isinstance(name, str):
-                visual_ret[name] = getattr(self, name)
+                visual_ret[name] = getattr(self, name).clone().detach()
         return visual_ret
 
     def get_current_losses(self):
@@ -140,6 +167,12 @@ class BaseModel(ABC):
             if isinstance(name, str):
                 errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
         return errors_ret
+
+    def get_early_stop_loss(self):
+        name=self.loss_names[0]
+        if isinstance(name, str):
+            loss = float(getattr(self, 'loss_' + name))
+        return loss
 
     def save_networks(self, epoch):
         """Save all the networks to the disk.

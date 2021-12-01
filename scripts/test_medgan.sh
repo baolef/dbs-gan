@@ -1,16 +1,15 @@
 python test.py \
---gpu_ids 1 \
---dataroot /data/baole/dbs/unaligned \
+--gpu_ids 3 \
+--dataroot /data/baole/dbs/patch_pix2pix/after/2d/AB \
 --results_dir ./results/after \
 --name dbs \
---model cycle_gan \
+--model med_gan \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
---batch_size 16 \
+--batch_size 64 \
 --suffix {model}_{netG}_size_{load_size} \
---netG resnet_9blocks \
+--netG unet_256 \
 --netD n_layers \
---epoch latest \
---lambda_identity 10 \
+--epoch best \
 --no_flip

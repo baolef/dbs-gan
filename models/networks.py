@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
+import torchvision
 
 
 ###############################################################################
@@ -154,6 +155,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'cas_unet_256':
+        net = GeneratorCasUNet(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_unet=6)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -201,6 +204,112 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % netD)
     return init_net(net, init_type, init_gain, gpu_ids)
+
+
+def define_vgg19(input_nc, gpu_ids=[]):
+    net=torchvision.models.vgg19(pretrained=True)
+    for param in net.parameters():
+        param.requires_grad = False
+    if input_nc!=3:
+        net_new = list(net.features.children())[:18]
+        net_new[0] = nn.Conv2d(input_nc, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    net=nn.Sequential(*net_new)
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
+    return net
+
+
+def define_vgg16(input_nc, gpu_ids=[], num_classes=1, pretrained=False, init_type='normal', init_gain=0.02):
+    # net=torchvision.models.vgg16(pretrained=pretrained,num_classes=num_classes)
+    # net_new = list(net.children())
+    # if input_nc!=3:
+    #     net_new[0][0] = nn.Conv2d(input_nc, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    # net_new.append(nn.Sigmoid())
+    # net=nn.Sequential(*net_new)
+    net=SE_VGG(input_nc,num_classes)
+    if len(gpu_ids) > 0:
+        assert(torch.cuda.is_available())
+        net.to(gpu_ids[0])
+        net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs
+    return init_net(net, init_type, init_gain, gpu_ids)
+
+
+class SE_VGG(nn.Module):
+    def __init__(self, in_channels,num_classes=1):
+        super().__init__()
+        self.num_classes = num_classes
+        # define an empty for Conv_ReLU_MaxPool
+        net = []
+
+        # block 1
+        net.append(nn.Conv2d(in_channels=in_channels, out_channels=64, padding=1, kernel_size=3, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=64, out_channels=64, padding=1, kernel_size=3, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # block 2
+        net.append(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1))
+        net.append(nn.ReLU())
+        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # block 3
+        net.append(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # block 4
+        net.append(nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # block 5
+        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
+        net.append(nn.ReLU())
+        net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # add net into class property
+        self.extract_feature = nn.Sequential(*net)
+
+        # define an empty container for Linear operations
+        classifier = []
+        classifier.append(nn.Linear(in_features=512*7*7, out_features=4096))
+        classifier.append(nn.ReLU())
+        classifier.append(nn.Dropout(p=0.5))
+        classifier.append(nn.Linear(in_features=4096, out_features=4096))
+        classifier.append(nn.ReLU())
+        classifier.append(nn.Dropout(p=0.5))
+        classifier.append(nn.Linear(in_features=4096, out_features=self.num_classes))
+        if self.num_classes==1:
+            classifier.append(nn.Sigmoid())
+        else:
+            classifier.append(nn.Softmax())
+
+        # add classifier into class property
+        self.classifier = nn.Sequential(*classifier)
+
+
+    def forward(self, x):
+        feature = self.extract_feature(x)
+        feature = feature.view(x.size(0), -1)
+        classify_result = self.classifier(feature)
+        return classify_result
 
 
 ##############################################################################
@@ -533,6 +642,26 @@ class UnetSkipConnectionBlock(nn.Module):
             return self.model(x)
         else:   # add skip connections
             return torch.cat([x, self.model(x)], 1)
+
+
+class GeneratorCasUNet(nn.Module):
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_unet=6):
+        super(GeneratorCasUNet, self).__init__()
+        self.n_unet = n_unet
+        # self.io_channels = io_channels
+        ####
+        self.unet_list = nn.ModuleList()
+        for i in range(self.n_unet):
+            self.unet_list.append(UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout))
+
+    def forward(self, x):
+        y = x
+        for i in range(self.n_unet):
+            if i == 0:
+                y = self.unet_list[i](y)
+            else:
+                y = self.unet_list[i](y + x)
+        return y
 
 
 class NLayerDiscriminator(nn.Module):

@@ -1,2 +1,21 @@
-set -ex
-python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan --pool_size 50 --no_dropout
+nohup python train.py \
+--gpu_ids 3 \
+--name dbs \
+--model cycle_gan \
+--dataroot /data/baole/dbs/unaligned \
+--direction AtoB \
+--load_size 512 \
+--crop_size 512 \
+--display_port 1233 \
+--batch_size 2 \
+--suffix {model}_{netG}_size_{load_size} \
+--display_freq 6400 \
+--print_freq 1600 \
+--netG resnet_9blocks \
+--netD n_layers \
+--n_epochs 100 \
+--n_epochs_decay 100 \
+--patience -1 \
+--lambda_identity 50 \
+--no_flip \
+> train_cycle_gan_resnet_9blocks_big_50.log 2>&1 &

@@ -1,15 +1,17 @@
 python test.py \
---gpu_ids 3 \
+--gpu_ids 1 \
 --dataroot /data/baole/dbs/patch_pix2pix/before/2d/AB \
 --results_dir ./results/before \
 --name dbs \
---model pix2pix \
+--model ip_med_gan \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
---batch_size 64 \
+--batch_size 16 \
 --suffix {model}_{netG}_size_{load_size} \
---netG unet_256 \
+--netG cas_unet_256 \
 --netD n_layers \
 --epoch best \
+--lambda_percep 100.0 \
+--lambda_style 100000.0 \
 --no_flip
