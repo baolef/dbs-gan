@@ -32,7 +32,7 @@ from data import create_dataset
 from models import create_model
 from util.visualizer import save_images
 from util import html
-import seaborn as sns
+# import seaborn as sns
 
 
 if __name__ == '__main__':
