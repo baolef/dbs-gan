@@ -1,0 +1,18 @@
+python test.py \
+--gpu_ids 0 \
+--dataroot /data/baole/dbs_zhongnan/unaligned_electrode \
+--results_dir ./results/after \
+--name dbs \
+--model ant_gan_patch \
+--dataset masked \
+--direction AtoB \
+--load_size 512 \
+--crop_size 512 \
+--batch_size 16 \
+--suffix {model}_{netG}_size_{load_size} \
+--netG resnet_9blocks \
+--netD n_layers \
+--epoch latest \
+--lambda_identity 1 \
+--lambda_mask 1500 \
+--no_flip

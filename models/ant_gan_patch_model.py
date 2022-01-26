@@ -5,10 +5,11 @@ from .base_model import BaseModel
 from . import networks
 from ignite.metrics import *
 
+
 # import matplotlib.pyplot as plt
 
 
-class AntGANModel(BaseModel):
+class AntGANPatchModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -93,7 +94,8 @@ class AntGANModel(BaseModel):
             self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
             self.netD_A_local = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                                  opt.n_layers_D_local, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+                                                  opt.n_layers_D_local, opt.norm, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
 
         if self.isTrain:
             if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
@@ -110,8 +112,9 @@ class AntGANModel(BaseModel):
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters(), self.netD_A_local.parameters()),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(
+                itertools.chain(self.netD_A.parameters(), self.netD_B.parameters(), self.netD_A_local.parameters()),
+                lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -149,22 +152,15 @@ class AntGANModel(BaseModel):
             real_B_list.append(
                 self.real_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
                 self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
-            # fake_B_left = self.fake_B_left_pool.query(
-            #     self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
-            #     self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
             fake_B_left.append(
                 self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
                 self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
-            # fake_B_right = self.fake_B_right_pool.query(
-            #     self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
-            #     self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
             fake_B_right.append(
                 self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
                 self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
         self.real_B_crop = torch.stack(real_B_list)
         self.fake_B_left = torch.stack(fake_B_left)
         self.fake_B_right = torch.stack(fake_B_right)
-
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -202,7 +198,7 @@ class AntGANModel(BaseModel):
         """Calculate GAN loss for discriminator D_A_local"""
         fake_B_left = self.fake_B_left_pool.query(self.fake_B_left)
         fake_B_right = self.fake_B_right_pool.query(self.fake_B_right)
-        fake_B_crop = torch.cat([fake_B_left,fake_B_right])
+        fake_B_crop = torch.cat([fake_B_left, fake_B_right])
         self.loss_D_A_local = self.backward_D_basic(self.netD_A_local, self.real_B_crop, fake_B_crop)
 
     def backward_G(self):
@@ -225,7 +221,8 @@ class AntGANModel(BaseModel):
 
         # GAN loss D_A(G_A(A))
         self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
-        self.loss_G_A_local = self.criterionGAN(self.netD_A_local(torch.cat([self.fake_B_left,self.fake_B_right])),True)
+        self.loss_G_A_local = self.criterionGAN(self.netD_A_local(torch.cat([self.fake_B_left, self.fake_B_right])),
+                                                True)
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
         # Forward cycle loss || G_B(G_A(A)) - A||
