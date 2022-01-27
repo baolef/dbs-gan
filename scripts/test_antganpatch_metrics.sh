@@ -1,0 +1,20 @@
+python test.py \
+--gpu_ids 0 \
+--dataroot /data/baole/dbs_zhongnan/aligned \
+--results_dir ./results/metrics_update \
+--name dbs \
+--model ant_gan_patch \
+--dataset masked \
+--direction AtoB \
+--load_size 512 \
+--crop_size 512 \
+--batch_size 16 \
+--suffix {model}_{netG}_size_{load_size} \
+--netG resnet_9blocks \
+--netD n_layers \
+--epoch best \
+--lambda_identity 0 \
+--lambda_mask 2000 \
+--metrics \
+--serial_batches \
+--no_flip

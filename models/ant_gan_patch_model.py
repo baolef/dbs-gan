@@ -252,3 +252,7 @@ class AntGANPatchModel(BaseModel):
         self.backward_D_B()  # calculate graidents for D_B
         self.backward_D_A_local()  # calculate gradients for D_A_local
         self.optimizer_D.step()  # update D_A and D_B's weights
+
+    def compute_metrics(self):
+        for name in self.metrics.keys():
+            self.metrics[name].update((self.fake_B,self.real_B))
