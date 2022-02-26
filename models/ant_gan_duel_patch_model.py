@@ -6,7 +6,10 @@ from . import networks
 from ignite.metrics import *
 
 
-class AntGANModel(BaseModel):
+# import matplotlib.pyplot as plt
+
+
+class AntGANDuelPatchModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -17,6 +20,7 @@ class AntGANModel(BaseModel):
 
     CycleGAN paper: https://arxiv.org/pdf/1703.10593.pdf
     """
+
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         """Add new dataset-specific options, and rewrite default values for existing options.
@@ -42,8 +46,10 @@ class AntGANModel(BaseModel):
         parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
         parser.add_argument('--lambda_identity', type=float, default=0.5,
                             help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
-        parser.add_argument('--lambda_mask', type=float, default=1000, help='weight for masked loss to keep unmasked areas unchanged')
+        parser.add_argument('--lambda_mask', type=float, default=1000,
+                            help='weight for masked loss to keep unmasked areas unchanged')
         parser.add_argument('--size', type=int, default=20, help='half of the size of the local patch')
+        parser.add_argument('--n_layers_D_local', type=int, default=2, help='the number of local discriminator layers')
 
         if is_train:
             parser.set_defaults(pool_size=100, gan_mode='vanilla')
@@ -58,7 +64,7 @@ class AntGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['G', 'D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'mask']
+        self.loss_names = ['G', 'D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'mask_A', 'mask_B', 'D_A_local', 'D_B_local']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -70,7 +76,7 @@ class AntGANModel(BaseModel):
         self.metrics = {'ssim': SSIM(2), 'psnr': PSNR(2), 'mse': MeanSquaredError(), 'mae': MeanAbsoluteError()}
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
-            self.model_names = ['G_A', 'G_B', 'D_A', 'D_B']
+            self.model_names = ['G_A', 'G_B', 'D_A', 'D_B', 'D_A_local', 'D_B_local']
         else:  # during test time, only load Gs
             self.model_names = ['G_A', 'G_B']
 
@@ -87,20 +93,33 @@ class AntGANModel(BaseModel):
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
             self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.netD_A_local = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D_local, opt.norm, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
+            self.netD_B_local = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                  opt.n_layers_D_local, opt.norm, opt.init_type, opt.init_gain,
+                                                  self.gpu_ids)
 
         if self.isTrain:
             if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
-                assert(opt.input_nc == opt.output_nc)
+                assert (opt.input_nc == opt.output_nc)
             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
+            self.fake_A_left_pool = ImagePool(opt.pool_size)
+            self.fake_A_right_pool = ImagePool(opt.pool_size)
+            self.fake_B_left_pool = ImagePool(opt.pool_size)
+            self.fake_B_right_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
             self.criterionMask = torch.nn.MSELoss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D = torch.optim.Adam(
+                itertools.chain(self.netD_A.parameters(), self.netD_B.parameters(), self.netD_A_local.parameters(),
+                                self.netD_B_local.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -117,16 +136,48 @@ class AntGANModel(BaseModel):
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
         self.mask_A = input['A_mask'].to(self.device)
-        self.point_A= input['A_point']
+        self.point_A = input['A_point']
+        self.mask_B = input['B_mask'].to(self.device)
         self.point_B = input['B_point']
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
-        self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
+        self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
-        self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+        self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+        self.crop_A()
         self.crop_B()
+
+    def crop_A(self):
+        real_A_list = []
+        fake_A_left = []
+        fake_A_right = []
+        fake_A_list=[]
+        for i in range(len(self.fake_A)):
+            real_A_list.append(
+                self.real_A[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
+                self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
+            real_A_list.append(
+                self.real_A[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
+                self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
+            fake_A_left.append(
+                self.fake_A[i, :, self.point_B[0][1][i] - self.opt.size:self.point_B[0][1][i] + self.opt.size,
+                self.point_B[0][0][i] - self.opt.size:self.point_B[0][0][i] + self.opt.size])
+            fake_A_right.append(
+                self.fake_A[i, :, self.point_B[1][1][i] - self.opt.size:self.point_B[1][1][i] + self.opt.size,
+                self.point_B[1][0][i] - self.opt.size:self.point_B[1][0][i] + self.opt.size])
+            fake_A_list.append(
+                self.fake_A[i, :, self.point_B[0][1][i] - self.opt.size:self.point_B[0][1][i] + self.opt.size,
+                self.point_B[0][0][i] - self.opt.size:self.point_B[0][0][i] + self.opt.size])
+            fake_A_list.append(
+                self.fake_A[i, :, self.point_B[1][1][i] - self.opt.size:self.point_B[1][1][i] + self.opt.size,
+                self.point_B[1][0][i] - self.opt.size:self.point_B[1][0][i] + self.opt.size])
+
+        self.real_A_crop = torch.stack(real_A_list)
+        self.fake_A_left = torch.stack(fake_A_left)
+        self.fake_A_right = torch.stack(fake_A_right)
+        self.fake_A_crop = torch.stack(fake_A_list)
 
     def crop_B(self):
         real_B_list = []
@@ -189,12 +240,27 @@ class AntGANModel(BaseModel):
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
 
+    def backward_D_A_local(self):
+        """Calculate GAN loss for discriminator D_A_local"""
+        fake_B_left = self.fake_B_left_pool.query(self.fake_B_left)
+        fake_B_right = self.fake_B_right_pool.query(self.fake_B_right)
+        fake_B_crop = torch.cat([fake_B_left, fake_B_right])
+        self.loss_D_A_local = self.backward_D_basic(self.netD_A_local, self.real_B_crop, fake_B_crop)
+
+    def backward_D_B_local(self):
+        """Calculate GAN loss for discriminator D_B_local"""
+        fake_A_left = self.fake_A_left_pool.query(self.fake_A_left)
+        fake_A_right = self.fake_A_right_pool.query(self.fake_A_right)
+        fake_A_crop = torch.cat([fake_A_left, fake_A_right])
+        self.loss_D_B_local = self.backward_D_basic(self.netD_B_local, self.real_A_crop, fake_A_crop)
+
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
-        lambda_mask = self.opt.lambda_mask
+        lambda_mask_A = self.opt.lambda_mask
+        lambda_mask_B = self.opt.lambda_mask
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -209,32 +275,40 @@ class AntGANModel(BaseModel):
 
         # GAN loss D_A(G_A(A))
         self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
+        self.loss_G_A_local = self.criterionGAN(self.netD_A_local(torch.cat([self.fake_B_left, self.fake_B_right])),
+                                                True)
         # GAN loss D_B(G_B(B))
         self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
+        self.loss_G_B_local = self.criterionGAN(self.netD_B_local(torch.cat([self.fake_A_left, self.fake_A_right])),
+                                                True)
         # Forward cycle loss || G_B(G_A(A)) - A||
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A)
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B)
         # mask loss
-        self.loss_mask=self.criterionMask(self.real_A*(1-self.mask_A),self.fake_B*(1-self.mask_A))
+        self.loss_mask_A = self.criterionMask(self.real_A * (1 - self.mask_A), self.fake_B * (1 - self.mask_A))
+        self.loss_mask_B = self.criterionMask(self.real_B * (1 - self.mask_B), self.fake_A * (1 - self.mask_B))
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A * lambda_A + self.loss_cycle_B* lambda_B + self.loss_idt_A * lambda_B * lambda_idt + self.loss_idt_B * lambda_A * lambda_idt + lambda_mask * self.loss_mask
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_G_A_local + self.loss_G_B_local + self.loss_cycle_A * lambda_A + self.loss_cycle_B * lambda_B + self.loss_idt_A * lambda_B * lambda_idt + self.loss_idt_B * lambda_A * lambda_idt + lambda_mask_A * self.loss_mask_A + lambda_mask_B * self.loss_mask_B
         self.loss_G.backward()
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
         # forward
-        self.forward()      # compute fake images and reconstruction images.
+        self.forward()  # compute fake images and reconstruction images.
         # G_A and G_B
-        self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
+        self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_local, self.netD_B_local],
+                               False)  # Ds require no gradients when optimizing Gs
         self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-        self.backward_G()             # calculate gradients for G_A and G_B
-        self.optimizer_G.step()       # update G_A and G_B's weights
+        self.backward_G()  # calculate gradients for G_A and G_B
+        self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
-        self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
-        self.backward_D_A()      # calculate gradients for D_A
-        self.backward_D_B()      # calculate graidents for D_B
+        self.set_requires_grad([self.netD_A, self.netD_B, self.netD_A_local, self.netD_B_local], True)
+        self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
+        self.backward_D_A()  # calculate gradients for D_A
+        self.backward_D_B()  # calculate graidents for D_B
+        self.backward_D_A_local()  # calculate gradients for D_A_local
+        self.backward_D_B_local()  # calculate gradients for D_B_local
         self.optimizer_D.step()  # update D_A and D_B's weights
 
     def compute_metrics(self):

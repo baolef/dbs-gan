@@ -1,9 +1,9 @@
 python test.py \
 --gpu_ids 0 \
 --dataroot /data/baole/dbs_zhongnan/aligned_ring \
---results_dir ./results/experiments \
+--results_dir ./results/experiments_crop \
 --name dbs \
---model ant_gan_patch \
+--model cycle_gan \
 --dataset masked \
 --direction AtoB \
 --load_size 512 \
@@ -14,10 +14,7 @@ python test.py \
 --netD n_layers \
 --epoch best \
 --lambda_identity 1 \
---lambda_mask 500 \
 --checkpoints_dir experiments \
---diff_A fake_B \
---diff_B real_A \
 --metrics \
 --serial_batches \
 --diff \

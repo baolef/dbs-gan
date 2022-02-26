@@ -1,0 +1,17 @@
+python test.py \
+--gpu_ids 1 \
+--dataroot /home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_tif/dbs_ant_gan_patch_resnet_9blocks_size_512_lambda_A_10.0_lambda_B_10.0_lambda_identity_1.0_lambda_mask_500.0/test_best/images \
+--dataset metrics \
+--results_dir ./results/metrics/ant_gan_patch/lambda_identity_1.0_lambda_mask_500.0 \
+--name dbs \
+--model vgg16 \
+--load_size 512 \
+--crop_size 224 \
+--batch_size 128 \
+--suffix {model}_{netG}_size_{load_size} \
+--netG resnet_9blocks \
+--netD n_layers \
+--epoch best \
+--metrics \
+--eval \
+--no_flip

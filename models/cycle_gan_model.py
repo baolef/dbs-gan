@@ -42,6 +42,7 @@ class CycleGANModel(BaseModel):
         parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
         parser.add_argument('--lambda_identity', type=float, default=0.5,
                             help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
+        parser.add_argument('--size', type=int, default=20, help='half of the size of the local patch')
 
         if is_train:
             parser.set_defaults(pool_size=100, gan_mode='vanilla')
@@ -76,10 +77,9 @@ class CycleGANModel(BaseModel):
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
         self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, opt.n_downsampling)
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-
+                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids, opt.n_downsampling)
         if self.isTrain:  # define discriminators
             self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
@@ -113,6 +113,9 @@ class CycleGANModel(BaseModel):
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        self.mask_A = input['A_mask'].to(self.device)
+        self.point_A= input['A_point']
+        self.point_B = input['B_point']
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -120,6 +123,36 @@ class CycleGANModel(BaseModel):
         self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
+        self.crop_B()
+
+    def crop_B(self):
+        real_B_list = []
+        fake_B_left = []
+        fake_B_right = []
+        fake_B_list=[]
+        for i in range(len(self.fake_B)):
+            real_B_list.append(
+                self.real_B[i, :, self.point_B[0][1][i] - self.opt.size:self.point_B[0][1][i] + self.opt.size,
+                self.point_B[0][0][i] - self.opt.size:self.point_B[0][0][i] + self.opt.size])
+            real_B_list.append(
+                self.real_B[i, :, self.point_B[1][1][i] - self.opt.size:self.point_B[1][1][i] + self.opt.size,
+                self.point_B[1][0][i] - self.opt.size:self.point_B[1][0][i] + self.opt.size])
+            fake_B_left.append(
+                self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
+                self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
+            fake_B_right.append(
+                self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
+                self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
+            fake_B_list.append(
+                self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
+                self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
+            fake_B_list.append(
+                self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
+                self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
+        self.real_B_crop = torch.stack(real_B_list)
+        self.fake_B_left = torch.stack(fake_B_left)
+        self.fake_B_right = torch.stack(fake_B_right)
+        self.fake_B_crop = torch.stack(fake_B_list)
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -197,3 +230,7 @@ class CycleGANModel(BaseModel):
         self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
         self.optimizer_D.step()  # update D_A and D_B's weights
+
+    def compute_metrics(self):
+        for name in self.metrics.keys():
+            self.metrics[name].update((self.fake_B_crop, self.real_B_crop))

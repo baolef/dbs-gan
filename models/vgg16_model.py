@@ -15,10 +15,12 @@ You need to implement the following functions:
     <forward>: Run forward pass. This will be called by both <optimize_parameters> and <test>.
     <optimize_parameters>: Update network weights; it will be called in every training iteration.
 """
+import ignite
 import torch
 from .base_model import BaseModel
 from . import networks
 import torchvision.models as models
+from ignite.metrics import *
 
 
 class VGG16Model(BaseModel):
@@ -49,12 +51,14 @@ class VGG16Model(BaseModel):
         """
         BaseModel.__init__(self, opt)  # call the initialization method of BaseModel
         # specify the training losses you want to print out. The program will call base_model.get_current_losses to plot the losses to the console and save them to the disk.
-        self.loss_names = ['loss_VGG16']
+        self.loss_names = ['VGG16']
         # specify the images you want to save and display. The program will call base_model.get_current_visuals to save and display these images.
-        self.visual_names = []
+        self.visual_names = ['data_AB']
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks to save and load networks.
         # you can use opt.isTrain to specify different behaviors for training and test. For example, some networks will not be used during test, and you don't need to load them.
         self.model_names = ['VGG16']
+
+        self.metrics = {'confusion matrix': ConfusionMatrix(num_classes=2)}
         # define networks; you can use opt.isTrain to specify different behaviors for training and test.
         self.netVGG16=networks.define_vgg16(opt.input_nc,self.gpu_ids)
         if self.isTrain:  # only defined during training time
@@ -63,8 +67,8 @@ class VGG16Model(BaseModel):
             self.criterionLoss = torch.nn.BCELoss()
             # define and initialize optimizers. You can define one optimizer for each network.
             # If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an example.
-            # self.optimizer = torch.optim.Adam(self.netVGG16.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer = torch.optim.RMSprop(self.netVGG16.parameters(), lr=opt.lr)
+            self.optimizer = torch.optim.Adam(self.netVGG16.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            # self.optimizer = torch.optim.RMSprop(self.netVGG16.parameters(), lr=opt.lr)
             self.optimizers = [self.optimizer]
 
         # Our program will automatically call <model.setup> to define schedulers, load networks, and print networks
@@ -75,13 +79,10 @@ class VGG16Model(BaseModel):
         Parameters:
             input: a dictionary that contains the data itself and its metadata information.
         """
-        AtoB = self.opt.direction == 'AtoB'  # use <direction> to swap data_A and data_B
-        self.data_A = input['A' if AtoB else 'B'].to(self.device)  # get image data A
-        self.data_B = input['B' if AtoB else 'A'].to(self.device)  # get image data B
-        self.data_AB = torch.cat([self.data_A,self.data_B],dim=0)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']  # get image paths
-        length=len(self.image_paths)
-        self.labels=torch.cat([torch.zeros(length,1),torch.ones(length,1)]).to(self.device)
+        self.data_AB = input['img'].to(self.device)
+        self.image_paths = input['path']  # get image paths
+        # self.labels=input['label'].type(torch.float).to(self.device)
+        self.labels = input['label'].reshape(len(self.data_AB), 1).type(torch.float).to(self.device)
 
     def forward(self):
         """Run forward pass. This will be called by both functions <optimize_parameters> and <test>."""
@@ -91,7 +92,6 @@ class VGG16Model(BaseModel):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
         # caculate the intermediate results if necessary; here self.output has been computed during function <forward>
         # calculate loss given the input and intermediate results
-        print(self.output.size(),self.labels.size())
         self.loss_VGG16 = self.criterionLoss(self.output, self.labels)
         self.loss_VGG16.backward()       # calculate gradients of network G w.r.t. loss_G
 
@@ -101,3 +101,11 @@ class VGG16Model(BaseModel):
         self.optimizer.zero_grad()   # clear network G's existing gradients
         self.backward()              # calculate gradients for network G
         self.optimizer.step()        # update gradients for network G
+
+    def compute_metrics(self):
+        for name in self.metrics.keys():
+            # print(self.output, self.labels)
+            y_pred=self.output.round().long()
+            y_pred = ignite.utils.to_onehot(y_pred, 2)
+            y_true=self.labels.long()
+            self.metrics[name].update((y_pred,y_true))

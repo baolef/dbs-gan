@@ -23,5 +23,6 @@ class TestOptions(BaseOptions):
         # Difference map: diff_A-diff_B
         parser.add_argument('--diff_A', type=str, default='fake_B', help='first term in difference map')
         parser.add_argument('--diff_B', type=str, default='real_B', help='second term in difference map')
+        parser.add_argument('--diff', action='store_true', help='force to calculate difference')
         parser.add_argument('--metrics', action='store_true', help='force to calculate metrics')
         return parser

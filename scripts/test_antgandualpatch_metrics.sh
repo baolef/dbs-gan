@@ -3,7 +3,7 @@ python test.py \
 --dataroot /data/baole/dbs_zhongnan/aligned_ring \
 --results_dir ./results/experiments \
 --name dbs \
---model ant_gan_patch \
+--model ant_gan_duel_patch \
 --dataset masked \
 --direction AtoB \
 --load_size 512 \
@@ -13,7 +13,7 @@ python test.py \
 --netG resnet_9blocks \
 --netD n_layers \
 --epoch best \
---lambda_identity 1 \
+--lambda_identity 0 \
 --lambda_mask 500 \
 --checkpoints_dir experiments \
 --diff_A fake_B \

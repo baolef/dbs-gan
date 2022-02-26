@@ -132,6 +132,7 @@ class AntGANPatchModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
         self.mask_A = input['A_mask'].to(self.device)
         self.point_A = input['A_point']
+        self.point_B = input['B_point']
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -139,28 +140,36 @@ class AntGANPatchModel(BaseModel):
         self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
-        self.crop()
+        self.crop_B()
 
-    def crop(self):
+    def crop_B(self):
         real_B_list = []
         fake_B_left = []
         fake_B_right = []
+        fake_B_list=[]
         for i in range(len(self.fake_B)):
             real_B_list.append(
-                self.real_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
-                self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
+                self.real_B[i, :, self.point_B[0][1][i] - self.opt.size:self.point_B[0][1][i] + self.opt.size,
+                self.point_B[0][0][i] - self.opt.size:self.point_B[0][0][i] + self.opt.size])
             real_B_list.append(
-                self.real_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
-                self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
+                self.real_B[i, :, self.point_B[1][1][i] - self.opt.size:self.point_B[1][1][i] + self.opt.size,
+                self.point_B[1][0][i] - self.opt.size:self.point_B[1][0][i] + self.opt.size])
             fake_B_left.append(
                 self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
                 self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
             fake_B_right.append(
                 self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
                 self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
+            fake_B_list.append(
+                self.fake_B[i, :, self.point_A[0][1][i] - self.opt.size:self.point_A[0][1][i] + self.opt.size,
+                self.point_A[0][0][i] - self.opt.size:self.point_A[0][0][i] + self.opt.size])
+            fake_B_list.append(
+                self.fake_B[i, :, self.point_A[1][1][i] - self.opt.size:self.point_A[1][1][i] + self.opt.size,
+                self.point_A[1][0][i] - self.opt.size:self.point_A[1][0][i] + self.opt.size])
         self.real_B_crop = torch.stack(real_B_list)
         self.fake_B_left = torch.stack(fake_B_left)
         self.fake_B_right = torch.stack(fake_B_right)
+        self.fake_B_crop = torch.stack(fake_B_list)
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -231,6 +240,7 @@ class AntGANPatchModel(BaseModel):
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B)
         # mask loss
         self.loss_mask = self.criterionMask(self.real_A * (1 - self.mask_A), self.fake_B * (1 - self.mask_A))
+
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_G_A_local + self.loss_cycle_A * lambda_A + self.loss_cycle_B * lambda_B + self.loss_idt_A * lambda_B * lambda_idt + self.loss_idt_B * lambda_A * lambda_idt + lambda_mask * self.loss_mask
         self.loss_G.backward()
@@ -255,4 +265,4 @@ class AntGANPatchModel(BaseModel):
 
     def compute_metrics(self):
         for name in self.metrics.keys():
-            self.metrics[name].update((self.fake_B,self.real_B))
+            self.metrics[name].update((self.fake_B_crop,self.real_B_crop))

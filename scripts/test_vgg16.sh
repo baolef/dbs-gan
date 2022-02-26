@@ -1,0 +1,17 @@
+python test.py \
+--gpu_ids 1 \
+--dataroot /data/baole/dbs_zhongnan/unaligned \
+--dataset vgg \
+--results_dir ./results/experiments \
+--name dbs \
+--model vgg16 \
+--load_size 512 \
+--crop_size 224 \
+--batch_size 128 \
+--suffix {model}_size_{crop_size}_lr_0.0002 \
+--netG resnet_9blocks \
+--netD n_layers \
+--epoch best \
+--metrics \
+--eval \
+--no_flip

@@ -1,16 +1,23 @@
 python test.py \
 --gpu_ids 1 \
---dataroot /data/baole/dbs/unaligned \
---results_dir ./results/after \
+--dataroot /data/baole/dbs_zhongnan/unaligned \
+--results_dir ./results/after_new \
 --name dbs \
 --model cycle_gan \
+--dataset masked \
+--checkpoints_dir checkpoints_new \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
 --batch_size 16 \
---suffix {model}_{netG}_size_{load_size} \
+--suffix {model}_{netG}_{netD}_{n_layers_D}_size_{crop_size} \
 --netG resnet_9blocks \
 --netD n_layers \
+--n_layers_D 4 \
 --epoch latest \
---lambda_identity 10 \
+--lambda_identity 0 \
+--diff_A fake_B \
+--diff_B real_A \
+--diff \
+--serial_batches \
 --no_flip

@@ -69,7 +69,7 @@ if __name__ == '__main__':
                 visualizer.display_current_results(results, epoch, save_result)
                 writer.add_results(results,total_iters)
 
-            if total_iters % opt.print_freq == 0:    # print training losses and save logging information to the disk
+            if opt.print_freq>0 and total_iters % opt.print_freq == 0:    # print training losses and save logging information to the disk
                 losses = model.get_current_losses()
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
@@ -77,15 +77,31 @@ if __name__ == '__main__':
                     visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
                 writer.add_losses(losses,total_iters)
 
-            if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
+            if opt.save_latest_freq>0 and total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
                 save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
                 model.save_networks(save_suffix)
 
             iter_data_time = time.time()
-        if epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs
+
+        if opt.display_freq < 0:  # display images on visdom and save images to a HTML file
+            save_result = total_iters % opt.update_html_freq == 0
+            model.compute_visuals()
+            results = model.get_current_visuals()
+            visualizer.display_current_results(results, epoch, save_result)
+            writer.add_results(results, total_iters)
+
+        if opt.print_freq<0:
+            losses = model.get_current_losses()
+            t_comp = (time.time() - iter_start_time) / opt.batch_size
+            visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
+            if opt.display_id > 0:
+                visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
+            writer.add_losses(losses, total_iters)
+
+        model.save_networks('latest')
+        if opt.save_epoch_freq>0 and epoch % opt.save_epoch_freq == 0:              # cache our model every <save_epoch_freq> epochs
             print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
-            model.save_networks('latest')
             model.save_networks(epoch)
 
         if total_loss<lowest_loss:

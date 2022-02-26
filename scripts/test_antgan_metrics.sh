@@ -3,7 +3,7 @@ python test.py \
 --dataroot /data/baole/dbs_zhongnan/aligned_ring \
 --results_dir ./results/experiments \
 --name dbs \
---model ant_gan_patch \
+--model ant_gan \
 --dataset masked \
 --direction AtoB \
 --load_size 512 \

@@ -1,19 +1,17 @@
 nohup python train.py \
---gpu_ids 2 \
+--gpu_ids 0 \
 --name dbs \
---model ant_gan \
+--model ant_gan_duel_patch \
 --dataset masked \
---checkpoints_dir checkpoints_new \
 --dataroot /data/baole/dbs_zhongnan/unaligned \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
 --display_port 1235 \
 --batch_size 2 \
---suffix {model}_{netG}_{netD}_{n_layers_D}_size_{crop_size} \
+--suffix {model}_{netG}_{netD}_{n_layers_D}_size_{load_size} \
 --display_freq -1 \
 --print_freq -1 \
---save_epoch_freq -1 \
 --netG resnet_9blocks \
 --netD n_layers \
 --n_layers_D 3 \
@@ -21,6 +19,7 @@ nohup python train.py \
 --n_epochs_decay 100 \
 --patience -1 \
 --lambda_identity 0 \
---lambda_mask 10000 \
+--lambda_mask 2000 \
+--checkpoints_dir checkpoints_new \
 --no_flip \
-> logs/train_ant_gan_7.log 2>&1 &
+> logs/train_ant_gan_dual_patch_8.log 2>&1 &

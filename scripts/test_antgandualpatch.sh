@@ -1,9 +1,9 @@
 python test.py \
---gpu_ids 1 \
+--gpu_ids 0 \
 --dataroot /data/baole/dbs_zhongnan/unaligned \
 --results_dir ./results/after_new \
 --name dbs \
---model ant_gan \
+--model ant_gan_duel_patch \
 --dataset masked \
 --checkpoints_dir checkpoints_new \
 --direction AtoB \

@@ -117,7 +117,7 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     return net
 
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], n_downsampling=2):
     """Create a generator
 
     Parameters:
@@ -148,9 +148,9 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     norm_layer = get_norm_layer(norm_type=norm)
 
     if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9, n_downsampling=n_downsampling)
     elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6, n_downsampling=n_downsampling)
     elif netG == 'unet_128':
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
@@ -274,6 +274,24 @@ class SE_VGG(nn.Module):
         net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
         net.append(nn.ReLU())
         net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+
+        # # block 5
+        # net.append(nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.MaxPool2d(kernel_size=2, stride=2))
+        #
+        # # block 5
+        # net.append(nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.Conv2d(in_channels=1024, out_channels=1024, kernel_size=3, padding=1, stride=1))
+        # net.append(nn.ReLU())
+        # net.append(nn.MaxPool2d(kernel_size=2, stride=2))
 
         # block 5
         net.append(nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1, stride=1))
@@ -427,7 +445,7 @@ class ResnetGenerator(nn.Module):
     We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
     """
 
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect'):
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect', n_downsampling = 2):
         """Construct a Resnet-based generator
 
         Parameters:
@@ -451,7 +469,6 @@ class ResnetGenerator(nn.Module):
                  norm_layer(ngf),
                  nn.ReLU(True)]
 
-        n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
             model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
@@ -689,7 +706,7 @@ class NLayerDiscriminator(nn.Module):
         nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
-            nf_mult = min(2 ** n, 8)
+            nf_mult = min(2 ** n, 16)
             sequence += [
                 nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
                 norm_layer(ndf * nf_mult),
@@ -697,7 +714,7 @@ class NLayerDiscriminator(nn.Module):
             ]
 
         nf_mult_prev = nf_mult
-        nf_mult = min(2 ** n_layers, 8)
+        nf_mult = min(2 ** n_layers, 16)
         sequence += [
             nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
             norm_layer(ndf * nf_mult),

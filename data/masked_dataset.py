@@ -27,6 +27,8 @@ class MaskedDataset(BaseDataset):
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
         self.dir_A_mask = self.dir_A+'_mask'
         self.dir_A_point = self.dir_A+'_point'
+        self.dir_B_mask = self.dir_B+'_mask'
+        self.dir_B_point = self.dir_B+'_point'
 
         self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
         self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
@@ -35,6 +37,8 @@ class MaskedDataset(BaseDataset):
 
         self.A_mask_paths=sorted(make_dataset(self.dir_A_mask, opt.max_dataset_size))
         self.A_point_paths=sorted(make_dataset(self.dir_A_point, opt.max_dataset_size))
+        self.B_mask_paths=sorted(make_dataset(self.dir_B_mask, opt.max_dataset_size))
+        self.B_point_paths=sorted(make_dataset(self.dir_B_point, opt.max_dataset_size))
 
         btoA = self.opt.direction == 'BtoA'
         input_nc = self.opt.output_nc if btoA else self.opt.input_nc       # get the number of channels of input image
@@ -62,6 +66,8 @@ class MaskedDataset(BaseDataset):
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_B = random.randint(0, self.B_size - 1)
         B_path = self.B_paths[index_B]
+        B_mask_path = self.B_mask_paths[index_B]
+        B_point_path = self.B_point_paths[index_B]
         A_img = Image.open(A_path)
         B_img = Image.open(B_path)
         # apply image transformation
@@ -69,14 +75,20 @@ class MaskedDataset(BaseDataset):
         B = self.transform_B(B_img)
         # open masks
         A_mask= self.transform_A(Image.open(A_mask_path))
+        B_mask = self.transform_A(Image.open(B_mask_path))
         # read points
         A_point=[]
         with open(A_point_path) as f:
             for line in f.readlines():
                 x,y,_,_=list(map(int,line.split(',')))
                 A_point.append((x,y))
+        B_point=[]
+        with open(B_point_path) as f:
+            for line in f.readlines():
+                x,y,_,_=list(map(int,line.split(',')))
+                B_point.append((x,y))
 
-        return {'A': A, 'B': B, 'A_mask': A_mask, 'A_point': A_point, 'A_paths': A_path, 'B_paths': B_path}
+        return {'A': A, 'B': B, 'A_mask': A_mask, 'A_point': A_point, 'A_paths': A_path, 'B_mask': B_mask, 'B_point': B_point, 'B_paths': B_path}
 
     def __len__(self):
         """Return the total number of images in the dataset.
