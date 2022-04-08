@@ -43,6 +43,8 @@ class BaseModel(ABC):
         self.optimizers = []
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
+        if not self.isTrain:
+            self.calculate_metrics=opt.metrics
 
     @staticmethod
     def modify_commandline_options(parser, is_train):
@@ -105,7 +107,8 @@ class BaseModel(ABC):
         with torch.no_grad():
             self.forward()
             self.compute_visuals()
-            self.compute_metrics()
+            if self.calculate_metrics:
+                self.compute_metrics()
 
     def compute_metrics(self):
         pass
