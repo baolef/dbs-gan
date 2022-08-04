@@ -4,10 +4,10 @@ import os
 import numpy as np
 from PIL import Image
 
-result_path = "/home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_all/dbs_ant_gan_patch_resnet_9blocks_n_layers_3_size_512_lambda_A_10.0_lambda_B_10.0_lambda_identity_0.0_lambda_mask_5000.0/test_best/images"
-nii_path = "/data/baole/dbs_zhongnan/raw/after"
-pts_path = "/data/baole/dbs_zhongnan/unaligned/testA_point"
-output_path = os.path.join(result_path.rsplit("/",1)[0],"nii")
+result_path = "/mnt/sdc1/home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_oasis_512/dbs_ant_gan_dual_patch_resnet_12blocks_2_n_layers_3_size_512_lambda_A_10.0_lambda_B_10.0_lambda_identity_0.0_lambda_mask_1000.0/test_best/images"
+nii_path = "/data/baole/dbs_oasis_compare/raw/after"
+pts_path = "/data/baole/dbs_oasis_compare/unaligned/testA_point"
+output_path = os.path.join(result_path.rsplit("/",1)[0],"nii_electrode")
 
 if not os.path.exists(output_path):
     os.makedirs(output_path)

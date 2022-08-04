@@ -1,10 +1,10 @@
 nohup python train.py \
---gpu_ids 2 \
+--gpu_ids 0 \
 --name dbs \
 --model ant_gan \
 --dataset masked \
---checkpoints_dir checkpoints_compare \
---dataroot /data/baole/dbs_zhongnan/unaligned \
+--checkpoints_dir checkpoints_oasis_compare \
+--dataroot /data/baole/dbs_oasis_compare/unaligned \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
@@ -15,13 +15,13 @@ nohup python train.py \
 --print_freq -1 \
 --save_epoch_freq -1 \
 --netG resnet_9blocks \
---n_downsampling 3 \
+--n_downsampling 2 \
 --netD n_layers \
---n_layers_D 4 \
+--n_layers_D 3 \
 --n_epochs 100 \
 --n_epochs_decay 100 \
 --patience -1 \
 --lambda_identity 0 \
---lambda_mask 10000 \
+--lambda_mask 1000 \
 --no_flip \
-> logs/train_ant_gan_28.log 2>&1 &
+> logs/train_ant_gan_40.log 2>&1 &

@@ -7,7 +7,7 @@ from PIL import Image
 
 def visualize(result_path):
     # result_path = "/home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_all/dbs_ant_gan_patch_resnet_9blocks_n_layers_3_size_512_lambda_A_10.0_lambda_B_10.0_lambda_identity_0.0_lambda_mask_5000.0/test_best/images"
-    nii_path = "/data/baole/dbs_zhongnan/raw/after"
+    nii_path = "/data/baole/dbs_oasis_512/raw/after"
     output_path = os.path.join(result_path.rsplit("/", 1)[0], "nii")
 
     if not os.path.exists(output_path):
@@ -39,7 +39,7 @@ def visualize(result_path):
 
 
 if __name__ == '__main__':
-    root = "/home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_all"
+    root = "/home/baole/dbs/pytorch-CycleGAN-and-pix2pix/results/after_oasis_512"
     for dir in os.listdir(root):
         patient = os.path.join(root, dir, "test_best", "images")
         print(patient)

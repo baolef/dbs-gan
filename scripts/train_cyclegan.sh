@@ -1,15 +1,15 @@
 nohup python train.py \
---gpu_ids 0 \
+--gpu_ids 3 \
 --name dbs \
 --model cycle_gan \
 --dataset masked \
---checkpoints_dir checkpoints_ruijin \
---dataroot /data/baole/dbs_ruijin/unaligned \
+--checkpoints_dir checkpoints_oasis_compare \
+--dataroot /data/baole/dbs_oasis_compare/unaligned \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
 --display_port 1233 \
---batch_size 2 \
+--batch_size 1 \
 --suffix {model}_{netG}_{n_downsampling}_{netD}_{n_layers_D}_size_{load_size} \
 --display_freq -1 \
 --print_freq -1 \
@@ -23,4 +23,4 @@ nohup python train.py \
 --patience -1 \
 --lambda_identity 0 \
 --no_flip \
-> logs/train_cycle_gan_13.log 2>&1 &
+> logs/train_cycle_gan_18.log 2>&1 &

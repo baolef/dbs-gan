@@ -1,9 +1,9 @@
 nohup python train.py \
---gpu_ids 3 \
+--gpu_ids 1 \
 --name dbs \
 --model ant_gan_dual_patch \
 --dataset masked \
---dataroot /data/baole/dbs_ruijin/unaligned \
+--dataroot /data/baole/dbs_oasis_compare/unaligned \
 --direction AtoB \
 --load_size 512 \
 --crop_size 512 \
@@ -13,15 +13,15 @@ nohup python train.py \
 --display_freq -1 \
 --print_freq -1 \
 --save_epoch_freq -1 \
---netG resnet_12blocks \
---n_downsampling 3 \
+--netG resnet_9blocks \
+--n_downsampling 2 \
 --netD n_layers \
 --n_layers_D 3 \
 --n_epochs 100 \
 --n_epochs_decay 100 \
 --patience -1 \
 --lambda_identity 0 \
---lambda_mask 1000 \
---checkpoints_dir checkpoints_ruijin \
+--lambda_mask 200 \
+--checkpoints_dir checkpoints_oasis_compare \
 --no_flip \
-> logs/train_ant_gan_dual_patch_48.log 2>&1 &
+> logs/train_ant_gan_dual_patch_79.log 2>&1 &
