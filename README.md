@@ -38,3 +38,9 @@ To transform the 2D output images into 3D nii voxels, you can run `visualization
 ```bash
 python visualization.py
 ```
+
+### Other
+To visualize the model structure, you can run `model_visualization.py`
+```bash
+python model_visualization.py
+```
